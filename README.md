@@ -2,6 +2,8 @@
 
 This repository is a small C-based SDR learning project built around rtl-sdr and raylib. The goal is to explore how software-defined radio signals can be captured, demodulated, and visualized from a real RTL-SDR dongle.
 
+![SDR demo GIF](assets/gif.gif)
+
 ## What this project is for
 
 This is meant as a hands-on learning project for:

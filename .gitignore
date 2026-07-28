@@ -1,0 +1,68 @@
+# Build and generated files
+/build/
+/out/
+/bin/
+/lib/
+*.o
+*.obj
+*.exe
+*.dll
+*.lib
+*.a
+*.pdb
+*.ilk
+*.exp
+*.log
+*.tmp
+*.swp
+*~
+
+# Generated files inside vendored dependencies
+vendor/**/build/
+vendor/**/CMakeFiles/
+vendor/**/Debug/
+vendor/**/Release/
+vendor/**/x64/
+vendor/**/*.o
+vendor/**/*.obj
+vendor/**/*.lib
+vendor/**/*.pdb
+vendor/**/*.ilk
+vendor/**/*.a
+vendor/**/*.dll
+
+# CMake / MSBuild / IDE artifacts
+CMakeFiles/
+CMakeScripts/
+cmake-build-*/
+Testing/
+.vs/
+.vscode/
+*.user
+*.suo
+*.ncb
+*.aps
+*.cache
+*.ipch
+*.VC.db
+*.VC.VC.opendb
+*.recipe
+*.tlog
+*.lastbuildstate
+compile_commands.json
+CPackConfig.cmake
+CPackSourceConfig.cmake
+Makefile
+
+# Local runtime artifacts
+*.raw
+*.wav
+*.bin
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Python noise (if any tooling is added later)
+__pycache__/
+*.pyc

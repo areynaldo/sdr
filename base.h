@@ -19,6 +19,8 @@
 
 #define CLAMP(x, a, b) ((x) < (a) ? (a) : ((x) > (b) ? (b) : (x)))
 
+#define NIL 0
+
 #define ASSERT(expr) do { \
     if (!(expr)) { \
         fprintf(stderr, "ASSERT_BREAK failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); \

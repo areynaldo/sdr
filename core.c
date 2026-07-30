@@ -1,0 +1,117 @@
+#include "core.h"
+#include "sdr.h"
+
+core_t core_init(
+    core_t settings)
+{
+    if (settings.audio_gain == 0)
+    {
+        settings.audio_gain = SDR_CORE_AUDIO_GAIN_DEFAULT;
+    }
+
+    if (settings.center_freq == 0)
+    {
+        settings.center_freq = SDR_CORE_CENTER_FREQ_DEFAULT;
+    }
+
+    if (settings.sample_rate == 0)
+    {
+        settings.sample_rate = SDR_CORE_SAMPLE_RATE_DEFAULT;
+    }
+
+    if (settings.iq_pairs == 0)
+    {
+        settings.iq_pairs = SDR_CORE_IQ_PAIRS_DEFAULT;
+    }
+
+    if (settings.iq_pairs_buffer_capacity == 0)
+    {
+        settings.iq_pairs_buffer_capacity = 2 * settings.iq_pairs;
+    }
+
+    if (settings.iq_pairs_buffer_count == 0)
+    {
+        settings.iq_pairs_buffer_count = 0;
+    }
+
+    if (settings.iq_pairs_buffer == NULL)
+    {
+        settings.device_iq_pairs_buffer = (uint8_t *)malloc(settings.iq_pairs_buffer_capacity * sizeof(uint8_t));
+        if (settings.device_iq_pairs_buffer == NULL)
+        {
+            printf("Failed to allocate iq pairs buffer.\n");
+            return settings;
+        }
+        settings.iq_pairs_buffer = (float32_t *)malloc(settings.iq_pairs_buffer_capacity * sizeof(float32_t));
+        if (settings.iq_pairs_buffer == NULL)
+        {
+            printf("Failed to allocate iq pairs buffer.\n");
+            return settings;
+        }
+    }
+
+    if (settings.device == 0)
+    {
+        if (rtlsdr_open(&settings.device, 0) < 0)
+        {
+            printf("Failed to open device 0 (in use by another app, or driver issue).\n");
+            settings.device = 0;
+            return settings;
+        }
+    }
+
+    rtlsdr_set_tuner_gain_mode(settings.device, 0);
+    rtlsdr_set_sample_rate(settings.device, settings.sample_rate);
+    rtlsdr_set_center_freq(settings.device, settings.center_freq);
+    rtlsdr_reset_buffer(settings.device);
+
+    return settings;
+}
+
+core_error_t core_read_iq_pairs_sync(core_t *core)
+{
+    ASSERT(core != NULL);
+    ASSERT(core->device != NULL);
+    ASSERT(core->device_iq_pairs_buffer != NULL);
+    ASSERT(core->iq_pairs_buffer != NULL);
+
+    int read_count = 0;
+    core->iq_pairs_buffer_count = 0;
+    if (rtlsdr_read_sync(core->device, core->device_iq_pairs_buffer, core->iq_pairs_buffer_capacity, &read_count) < 0 || read_count == 0)
+    {
+        return CORE_ERROR_READ_SYNC_FAILED;
+    }
+
+    core->iq_pairs_buffer_count = (size_t)read_count;
+    uint8_buffer_to_float32_buffer(core->device_iq_pairs_buffer, core->iq_pairs_buffer_count, core->iq_pairs_buffer, core->iq_pairs_buffer_count);
+    return CORE_ERROR_NONE;
+}
+
+void core_set_center_freq(core_t *core, float32_t freq)
+{
+    ASSERT(core != NULL);
+    ASSERT(core->device != NULL);
+    ASSERT(core->device_iq_pairs_buffer != NULL);
+    ASSERT(core->iq_pairs_buffer != NULL);
+
+    core->center_freq = freq;
+    rtlsdr_set_center_freq(core->device, core->center_freq);
+}
+
+void core_deinit(core_t *core)
+{
+    if (core->iq_pairs_buffer != NULL)
+    {
+        free(core->iq_pairs_buffer);
+    }
+
+    if (core->device_iq_pairs_buffer != NULL)
+    {
+        free(core->device_iq_pairs_buffer);
+    }
+
+    if (core->device != NULL)
+    {
+        rtlsdr_close(core->device);
+    }
+}

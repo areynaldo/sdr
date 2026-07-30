@@ -9,9 +9,8 @@ This repository is a small C-based SDR learning project built around rtl-sdr and
 This is meant as a hands-on learning project for:
 - working with RTL-SDR devices from C
 - reading and interpreting I/Q samples
-- tuning frequency and sample rate settings
-- building simple FM demodulation
-- visualizing signal data and audio output in a window
+- building simple demodulation, audio, analysis pipelines
+- visualizing signal data
 
 ## Current feature list
 
@@ -20,6 +19,8 @@ This is meant as a hands-on learning project for:
 - FM demodulation from incoming I/Q data
 - simple audio stream output
 - live drawing of I/Q samples and demodulated signal traces
+- simple gui using Dear ImGui
+- changing center frequency
 
 ## Build
 

@@ -3,6 +3,14 @@
 
 #include "base.h"
 
+#define KHz(x) x * 1000.0
+#define MHz(x) KH(x) * 1000.0
+#define GHz(x) MH(x) * 1000.0
+
+#define FM_BAND_START MHz(87.5)
+#define FM_BAND_END MHz(108)
+#define FM_BAND_WIDTH (FM_BAND_END - FM_BAND_START)
+
 size_t uint8_buffer_to_float32_buffer(
     uint8_t *input_buffer,
     size_t input_count,

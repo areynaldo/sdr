@@ -5,11 +5,14 @@
 #include <string.h>
 #include <math.h>
 
-#include "raylib.h"
-#include "rtl-sdr.h"
 #include "base.h"
 #include "sdr.h"
 #include "sdr.c"
+
+#include "rtl-sdr.h"
+#include "raylib.h"
+#include "cimgui.h"
+#include "rlImGui.h"
 
 static inline float lane_y(float v, float vmin, float vmax, float top, float bot) {
     float t = (v - vmin) / (vmax - vmin);
@@ -18,6 +21,7 @@ static inline float lane_y(float v, float vmin, float vmax, float top, float bot
 
 int main(void)
 {
+    float gain = 8000.0f;
     uint32_t sample_rate = 250000;
     uint32_t center_freq = 97300000;
     size_t iq_pairs = 4096;
@@ -85,6 +89,10 @@ int main(void)
     AudioStream audio_stream = LoadAudioStream(50000, 16, 1);
     PlayAudioStream(audio_stream);
 
+    rlImGuiSetup(true);
+    ImGuiIO *io = igGetIO_Nil();
+    io->ConfigFlags |= ImGuiConfigFlags_DockingEnable;
+
     RenderTexture2D scope = LoadRenderTexture(window_width, window_height);
     BeginTextureMode(scope);
     ClearBackground(BLACK);
@@ -109,7 +117,7 @@ int main(void)
 
         size_t audio_count = 0;
         audio_count = decimate_block_average_float32(demodulated_buffer, demodulated_count, decimated_buffer, demodulated_count, decimate_factor);
-        float32_rads_to_int16_audio(decimated_buffer, audio_count, audio_buffer, audio_count, 8000.0f);
+        float32_rads_to_int16_audio(decimated_buffer, audio_count, audio_buffer, audio_count, gain);
 
         if (IsAudioStreamProcessed(audio_stream))
         {
@@ -149,6 +157,13 @@ int main(void)
                        (Rectangle){0, 0, (float)scope.texture.width, -(float)scope.texture.height},
                        (Vector2){0, 0}, WHITE);
         DrawFPS(10, 10);
+        rlImGuiBegin();
+        igDockSpaceOverViewport(0, igGetMainViewport(), ImGuiDockNodeFlags_PassthruCentralNode, NULL);
+        if (igBegin("Controls", NULL, 0)) {
+            igSliderFloat("Gain", &gain, 0.0f, 16000.0f, "%.0f", 0);
+        }
+        igEnd();
+        rlImGuiEnd();
         EndDrawing();
     }
 
@@ -158,6 +173,7 @@ int main(void)
     free(audio_buffer);
     free(demodulated_buffer);
     free(iq_buffer);
+    rlImGuiShutdown();
     rtlsdr_close(dev);
     return 0;
 }

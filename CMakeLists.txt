@@ -63,7 +63,7 @@ endif()
 # ---------------------------------------------------------------------------
 # the app  (all .c files next to this CMakeLists)
 # ---------------------------------------------------------------------------
-file(GLOB APP_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/*.c)
+file(GLOB APP_SOURCES CONFIGURE_DEPENDS ${CMAKE_SOURCE_DIR}/main.c)
 add_executable(dsp ${APP_SOURCES})
 target_link_libraries(dsp PRIVATE raylib rtlsdr)
 

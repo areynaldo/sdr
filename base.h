@@ -6,6 +6,10 @@
 #include <stdbool.h>
 #include <stdint.h>
 #include <string.h>
+#include <math.h>
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 #if defined(_MSC_VER)
 #define DEBUG_BREAK() __debugbreak()
@@ -13,12 +17,17 @@
 #define DEBUG_BREAK() __builtin_trap()
 #endif
 
+#define CLAMP(x, a, b) ((x) < (a) ? (a) : ((x) > (b) ? (b) : (x)))
+
 #define ASSERT(expr) do { \
     if (!(expr)) { \
         fprintf(stderr, "ASSERT_BREAK failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); \
         DEBUG_BREAK(); \
     } \
 } while (0)
+
+typedef float float32_t;
+typedef double float64_t;
 
 
 #define KiB(x) ((x)*1024LL)

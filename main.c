@@ -7,20 +7,13 @@
 
 #include "raylib.h"
 #include "rtl-sdr.h"
+#include "base.h"
+#include "sdr.h"
+#include "sdr.c"
 
-int8_t uint8_to_centered_int8(uint8_t value)
-{
-    return (int8_t)((int)value - 128);
-}
-
-// TODO(areynaldo): maye it should just take the whole buffer and a length instead of single
-float demodulate_fm(float i_prev, float q_prev, float i_next, float q_next)
-{
-    float real = i_prev * i_next + q_prev * q_next;
-    float imaginary = i_prev * q_next - q_prev * i_next;
-    float demodulated = atan2f(imaginary, real);
-
-    return demodulated;
+static inline float lane_y(float v, float vmin, float vmax, float top, float bot) {
+    float t = (v - vmin) / (vmax - vmin);
+    return bot - t * (bot - top);
 }
 
 int main(void)
@@ -28,8 +21,8 @@ int main(void)
     uint32_t sample_rate = 250000;
     uint32_t center_freq = 97300000;
     size_t iq_pairs = 4096;
-    int8_t *iq_buffer = NULL;
-    size_t iq_buffer_size = iq_pairs * 2;
+    uint8_t *iq_uint8_buffer = NULL;
+    size_t iq_uint8_buffer_size = iq_pairs * 2;
 
     // detect devices
     uint32_t device_count = rtlsdr_get_device_count();
@@ -74,9 +67,13 @@ int main(void)
            rtlsdr_get_sample_rate(dev), rtlsdr_get_center_freq(dev));
 
     rtlsdr_reset_buffer(dev);
-    iq_buffer = (int8_t *)malloc(iq_buffer_size * sizeof(int8_t));
+    iq_uint8_buffer = (uint8_t *)malloc(iq_uint8_buffer_size * sizeof(uint8_t));
+    float *iq_buffer = (float *)malloc(iq_uint8_buffer_size * sizeof(float32_t));
     float *demodulated_buffer = (float *)malloc(iq_pairs * sizeof(float));
-    int16_t *audio_buffer = (int16_t *)malloc((iq_pairs / 5 + 1) * sizeof(int16_t));
+    uint32_t decimate_factor = 5;
+    size_t audio_buffer_count = (iq_pairs / decimate_factor + 1) * sizeof(int16_t);
+    int16_t *audio_buffer = (int16_t *)malloc(audio_buffer_count);
+    float32_t *decimated_buffer = (float32_t *)malloc(iq_pairs-1 * sizeof(float32_t));
 
     int window_height = 800;
     int window_width = 800;
@@ -88,77 +85,70 @@ int main(void)
     AudioStream audio_stream = LoadAudioStream(50000, 16, 1);
     PlayAudioStream(audio_stream);
 
+    RenderTexture2D scope = LoadRenderTexture(window_width, window_height);
+    BeginTextureMode(scope);
+    ClearBackground(BLACK);
+    EndTextureMode();
+
     while (!WindowShouldClose())
     {
-        int read_count = 0;
-        if (rtlsdr_read_sync(dev, iq_buffer, iq_buffer_size, &read_count) < 0 || read_count == 0)
+        int iq_read_count = 0;
+        if (rtlsdr_read_sync(dev, iq_uint8_buffer, iq_uint8_buffer_size, &iq_read_count) < 0 || iq_read_count == 0)
         {
             // TODO: defer clean stuff
             printf("read_sync failed / returned 0 bytes.\n");
+            free(iq_uint8_buffer);
             free(iq_buffer);
             rtlsdr_close(dev);
             return 1;
         }
-        int pairs_read = read_count/2;
+        uint8_buffer_to_float32_buffer(iq_uint8_buffer, iq_read_count, iq_buffer, iq_read_count);
 
-        // TODO(areynaldo): consider unrolling
-        // center the buffer
-        for (int i = 0; i < read_count; i++)
+        int demodulated_count = iq_read_count / 2 - 1;
+        demodulate_fm_float32(iq_buffer, iq_read_count, demodulated_buffer, demodulated_count);
+
+        size_t audio_count = 0;
+        audio_count = decimate_block_average_float32(demodulated_buffer, demodulated_count, decimated_buffer, demodulated_count, decimate_factor);
+        float32_rads_to_int16_audio(decimated_buffer, audio_count, audio_buffer, audio_count, 8000.0f);
+
+        if (IsAudioStreamProcessed(audio_stream))
         {
-            iq_buffer[i] = iq_buffer[i] ^ 0x80;
-        }
-
-        int demodulated_count = pairs_read - 1;
-        for (int i = 0; i < demodulated_count; i++)
-        {
-            demodulated_buffer[i] = demodulate_fm(
-                (float)iq_buffer[i * 2],
-                (float)iq_buffer[i * 2 + 1],
-                (float)iq_buffer[(i + 1) * 2],
-                (float)iq_buffer[(i + 1) * 2 + 1]);
-        }
-
-        // TODO(areynaldo): moving-average as crude low pass, FIR later
-        // decimate 250kHz -> 50kHz (factor of 5) and convert to int16_t
-        int audio_count = 0;
-        for (int i = 0; i + 5 <= demodulated_count; i += 5)
-        {
-            float accumulator = 0.0f;
-            for (int k = 0; k < 5; k++)
-            {
-                accumulator += demodulated_buffer[i + k];
-            }
-
-            float sample = (accumulator / 5.0f) * 8000.0f;
-
-            if (sample > 32767.0f)
-            {
-                sample = 32767.0f;
-            }
-
-            if (sample < -32768.0f)
-            {
-                sample = -32768.0f;
-            }
-
-            audio_buffer[audio_count++] = (int16_t)sample;
-        }
-
-        if(IsAudioStreamProcessed(audio_stream)) {
             UpdateAudioStream(audio_stream, audio_buffer, audio_count);
         }
 
+        BeginTextureMode(scope);
+            DrawRectangle(0, 0, window_width, window_height, (Color){0, 0, 0, 255});
+
+            float lane = window_height / 3.0f;   // lane 0: IQ, lane 1: demod, lane 2: audio
+
+            int n = window_width < demodulated_count ? window_width : demodulated_count;
+            for (int x = 1; x < n; x++) {
+                // raw I/Q, range ~[-128,127]
+                DrawLine(x-1, lane_y(iq_buffer[(x-1)*2],   -140,140, 0, lane),
+                        x,   lane_y(iq_buffer[x*2],       -140,140, 0, lane), (Color){80,160,255,255});
+                DrawLine(x-1, lane_y(iq_buffer[(x-1)*2+1], -140,140, 0, lane),
+                        x,   lane_y(iq_buffer[x*2+1],     -140,140, 0, lane), (Color){255,120,120,255});
+                // demodulated phase, [-PI,PI]
+                DrawLine(x-1, lane_y(demodulated_buffer[x-1], -PI,PI, lane, 2*lane),
+                        x,   lane_y(demodulated_buffer[x],   -PI,PI, lane, 2*lane), RAYWHITE);
+            }
+
+            int an = window_width < (int)audio_count ? window_width : (int)audio_count;
+            for (int x = 1; x < an; x++) {
+                DrawLine(x-1, lane_y(audio_buffer[x-1], -32768,32767, 2*lane, 3*lane),
+                        x,   lane_y(audio_buffer[x],   -32768,32767, 2*lane, 3*lane), (Color){120,255,160,255});
+            }
+
+            DrawLine(0, lane,   window_width, lane,   (Color){40,40,40,255});
+            DrawLine(0, 2*lane, window_width, 2*lane, (Color){40,40,40,255});
+        EndTextureMode();
+
         BeginDrawing();
         ClearBackground(BLACK);
+        DrawTextureRec(scope.texture,
+                       (Rectangle){0, 0, (float)scope.texture.width, -(float)scope.texture.height},
+                       (Vector2){0, 0}, WHITE);
         DrawFPS(10, 10);
-        for (int x = 0; x < window_width; x++)
-        {
-            int8_t i_sample = iq_buffer[x * 2];
-            int8_t q_sample = iq_buffer[x * 2 + 1];
-            DrawPixel(x, window_height / 2 + (i_sample * ((float)signal_height / 256.0f)), BLUE);
-            DrawPixel(x, window_height / 2 + (q_sample * ((float)signal_height / 256.0f)), RED);
-            DrawPixel(x, window_height / 2 + (demodulated_buffer[x] * ((float)signal_height * 0.25f / PI)), WHITE);
-        }
         EndDrawing();
     }
 

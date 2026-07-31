@@ -1,5 +1,4 @@
 #include "core.h"
-#include "sdr.h"
 
 core_t core_init(
     core_t settings)
@@ -19,14 +18,14 @@ core_t core_init(
         settings.sample_rate = SDR_CORE_SAMPLE_RATE_DEFAULT;
     }
 
-    if (settings.iq_pairs == 0)
+    if (settings.iq_pairs_count == 0)
     {
-        settings.iq_pairs = SDR_CORE_IQ_PAIRS_DEFAULT;
+        settings.iq_pairs_count = SDR_CORE_IQ_PAIRS_DEFAULT;
     }
 
     if (settings.iq_pairs_buffer_capacity == 0)
     {
-        settings.iq_pairs_buffer_capacity = 2 * settings.iq_pairs;
+        settings.iq_pairs_buffer_capacity = 2 * settings.iq_pairs_count;
     }
 
     if (settings.iq_pairs_buffer_count == 0)
@@ -110,8 +109,80 @@ void core_deinit(core_t *core)
         free(core->device_iq_pairs_buffer);
     }
 
+    if (core->demodulated_buffer != NULL)
+    {
+        free(core->demodulated_buffer);
+    }
+
+    if (core->decimated_buffer != NULL)
+    {
+        free(core->decimated_buffer);
+    }
+
+    if (core->audio_buffer != NULL)
+    {
+        free(core->audio_buffer);
+    }
+
     if (core->device != NULL)
     {
         rtlsdr_close(core->device);
     }
+}
+
+void setup_fm_pipeline(core_t *core,
+                       uint32_t decimate_factor,
+                       uint32_t sample_rate,
+                       size_t sample_size,
+                       uint32_t channels)
+{
+    ASSERT(core != NULL);
+
+    core->decimate_factor = decimate_factor;
+    core->audio_sample_size = sample_size;
+
+    core->demodulated_buffer_count = 0;
+    if (core->demodulated_buffer == NULL)
+    {
+        core->demodulated_buffer_capacity = core->iq_pairs_count;
+        core->demodulated_buffer = malloc(core->demodulated_buffer_capacity * sizeof(float32_t));
+    }
+
+    core->decimated_buffer_count = 0;
+    if (core->decimated_buffer == NULL)
+    {
+        core->decimated_buffer_capacity = core->iq_pairs_count;
+        core->decimated_buffer = malloc(core->decimated_buffer_capacity * sizeof(float32_t));
+    }
+
+    core->audio_buffer_count = 0;
+    if (core->audio_buffer == NULL)
+    {
+        core->audio_buffer_capacity = core->iq_pairs_count;
+        core->audio_buffer = malloc(core->audio_buffer_capacity * core->audio_sample_size);
+    }
+
+    ASSERT(core->decimated_buffer != NULL);
+    ASSERT(core->audio_buffer != NULL);
+}
+
+void run_fm_pipeline(core_t *core)
+{
+    ASSERT(core != NULL);
+
+    core->demodulated_buffer_count = demodulate_fm_float32(core->iq_pairs_buffer,
+                                                           core->iq_pairs_buffer_count,
+                                                           core->demodulated_buffer,
+                                                           core->demodulated_buffer_capacity);
+
+    core->decimated_buffer_count = decimate_block_average_float32(core->demodulated_buffer,
+                                                                  core->demodulated_buffer_count,
+                                                                  core->decimated_buffer,
+                                                                  core->decimated_buffer_capacity,
+                                                                  core->decimate_factor);
+
+    core->audio_buffer_count = float32_rads_to_int16_audio(core->decimated_buffer,
+                                                           core->decimated_buffer_count,
+                                                           (int16_t *)core->audio_buffer,
+                                                           core->audio_buffer_capacity, core->audio_gain);
 }

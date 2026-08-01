@@ -2,7 +2,7 @@
 #define SDR_CORE_H
 
 #include "base.h"
-
+#include "fft.h"
 #include "dsp.h"
 #include "rtl-sdr.h"
 
@@ -79,6 +79,14 @@ typedef struct core_t
     uint8_t *audio_buffer;
     size_t audio_buffer_capacity;
     size_t audio_buffer_count;
+
+    complex32_t *audio_frequency_buffer;
+    size_t audio_frequency_buffer_capacity;
+    size_t audio_frequency_buffer_count;
+
+    float32_t *audio_magnitude_buffer;
+    size_t audio_magnitude_buffer_capacity;
+    size_t audio_magnitude_buffer_count;
 } core_t;
 
 // core
@@ -97,5 +105,7 @@ void setup_fm_pipeline(core_t *core,
                        uint32_t sample_rate,
                        size_t sample_size,
                        uint32_t channels);
+
+void run_fm_pipeline(core_t *core);
 
 #endif

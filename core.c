@@ -1,4 +1,5 @@
 #include "core.h"
+#include "fft.h"
 
 core_t core_init(
     core_t settings)
@@ -124,6 +125,16 @@ void core_deinit(core_t *core)
         free(core->audio_buffer);
     }
 
+    if (core->audio_frequency_buffer != NULL)
+    {
+        free(core->audio_frequency_buffer);
+    }
+
+    if (core->audio_magnitude_buffer != NULL)
+    {
+        free(core->audio_magnitude_buffer);
+    }
+
     if (core->device != NULL)
     {
         rtlsdr_close(core->device);
@@ -139,7 +150,9 @@ void setup_fm_pipeline(core_t *core,
     ASSERT(core != NULL);
 
     core->decimate_factor = decimate_factor;
+    core->audio_sample_rate = sample_rate;
     core->audio_sample_size = sample_size;
+    core->audio_channels = channels;
 
     core->demodulated_buffer_count = 0;
     if (core->demodulated_buffer == NULL)
@@ -162,8 +175,25 @@ void setup_fm_pipeline(core_t *core,
         core->audio_buffer = malloc(core->audio_buffer_capacity * core->audio_sample_size);
     }
 
+    core->audio_frequency_buffer_count = 0;
+    if (core->audio_frequency_buffer == NULL)
+    {
+        core->audio_frequency_buffer_capacity = 1024;
+        core->audio_frequency_buffer = malloc(core->audio_frequency_buffer_capacity * sizeof(complex32_t));
+    }
+
+    core->audio_magnitude_buffer_count = 0;
+    if (core->audio_magnitude_buffer == NULL)
+    {
+        core->audio_magnitude_buffer_capacity = core->audio_frequency_buffer_capacity;
+        core->audio_magnitude_buffer = malloc(core->audio_magnitude_buffer_capacity * sizeof(float32_t));
+    }
+
+    ASSERT(core->demodulated_buffer != NULL);
     ASSERT(core->decimated_buffer != NULL);
     ASSERT(core->audio_buffer != NULL);
+    ASSERT(core->audio_frequency_buffer != NULL);
+    ASSERT(core->audio_magnitude_buffer != NULL);
 }
 
 void run_fm_pipeline(core_t *core)
@@ -184,5 +214,39 @@ void run_fm_pipeline(core_t *core)
     core->audio_buffer_count = float32_rads_to_int16_audio(core->decimated_buffer,
                                                            core->decimated_buffer_count,
                                                            (int16_t *)core->audio_buffer,
-                                                           core->audio_buffer_capacity, core->audio_gain);
+                                                           core->audio_buffer_capacity,
+                                                           core->audio_gain);
+
+    // --- audio spectrum of the played samples ---
+    size_t fft_length = core->audio_frequency_buffer_capacity;
+    int16_t *audio_samples = (int16_t *)core->audio_buffer;
+
+    // convert int16 -> complex (imaginary = 0), taking up to fft_length samples.
+    size_t available = size_min((size_t)core->audio_buffer_count, fft_length);
+    for (size_t index = 0; index < available; ++index)
+    {
+        core->audio_frequency_buffer[index].real = (float32_t)audio_samples[index] / 32768.0f;
+        core->audio_frequency_buffer[index].imaginary = 0.0f;
+    }
+
+
+    // zero-pad if the block was shorter than the FFT
+    for (size_t index = available; index < fft_length; ++index)
+    {
+        core->audio_frequency_buffer[index].real = 0.0f;
+        core->audio_frequency_buffer[index].imaginary = 0.0f;
+    }
+
+    fft_radix2(core->audio_frequency_buffer, fft_length);
+
+    float32_t scale = 2.0f / (float32_t)fft_length;
+    size_t half = fft_length / 2;
+    for (size_t index = 0; index < half; index++)
+    {
+        float32_t re = core->audio_frequency_buffer[index].real;
+        float32_t im = core->audio_frequency_buffer[index].imaginary;
+        float32_t mag = sqrtf(re * re + im * im) * scale;
+        core->audio_magnitude_buffer[index] = 20.0f * log10f(mag + 1e-9f);
+    }
+    core->audio_magnitude_buffer_count = half;
 }

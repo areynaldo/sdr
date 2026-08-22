@@ -1,15 +1,18 @@
 #ifndef BASE_H
 #define BASE_H
 
-#include <stdio.h>
-#include <stdlib.h>
+#include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
-#include <math.h>
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
 #endif
+
+#define MIN(a, b) ((a < b) ? a : b)
+#define MAX(a, b) ((a > b) ? a : b)
 
 #if defined(_MSC_VER)
 #define DEBUG_BREAK() __debugbreak()
@@ -19,19 +22,21 @@
 
 #define CLAMP(x, a, b) ((x) < (a) ? (a) : ((x) > (b) ? (b) : (x)))
 
+#define ARRAY_COUNT(a) (sizeof(a) / sizeof(a[0]))
+
 #define NIL 0
 
-#define ASSERT(expr)                                                                         \
-    do                                                                                       \
-    {                                                                                        \
-        if (!(expr))                                                                         \
-        {                                                                                    \
-            fprintf(stderr, "ASSERT_BREAK failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__); \
-            DEBUG_BREAK();                                                                   \
-        }                                                                                    \
+#define ASSERT(expr)                                                                                                   \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if (!(expr))                                                                                                   \
+        {                                                                                                              \
+            fprintf(stderr, "ASSERT_BREAK failed: %s (%s:%d)\n", #expr, __FILE__, __LINE__);                           \
+            DEBUG_BREAK();                                                                                             \
+        }                                                                                                              \
     } while (0)
 
-typedef float float32_t;
+typedef float  float32_t;
 typedef double float64_t;
 
 #define KiB(x) ((x) * 1024LL)
@@ -49,17 +54,17 @@ typedef struct arena_t arena_t;
 struct arena_t
 {
     uint8_t *buffer;
-    size_t capacity;
-    size_t offset;
+    size_t   capacity;
+    size_t   offset;
 };
 
 static inline bool arena_init(arena_t *arena, size_t capacity)
 {
     ASSERT(arena);
 
-    arena->buffer = NULL;
+    arena->buffer   = NULL;
     arena->capacity = 0;
-    arena->offset = 0;
+    arena->offset   = 0;
 
     if (capacity == 0)
     {
@@ -87,7 +92,7 @@ static inline void *arena_alloc_align(arena_t *arena, size_t size, size_t align)
     }
 
     // Round the current offset up to the requested alignment.
-    size_t mask = align - 1;
+    size_t mask           = align - 1;
     size_t aligned_offset = (arena->offset + mask) & ~mask;
     if (aligned_offset > arena->capacity || size > arena->capacity - aligned_offset)
     {
@@ -122,15 +127,15 @@ static inline void arena_release(arena_t *arena)
     }
 
     free(arena->buffer);
-    arena->buffer = NULL;
+    arena->buffer   = NULL;
     arena->capacity = 0;
-    arena->offset = 0;
+    arena->offset   = 0;
 }
 
 typedef struct string_t string_t;
 struct string_t
 {
-    char *str;
+    char  *str;
     size_t length;
 };
 
@@ -138,10 +143,10 @@ typedef struct string_intern_table_t string_intern_table_t;
 struct string_intern_table_t
 {
     uint64_t *hashes;
-    size_t *offsets;
-    size_t *lengths;
-    size_t capacity;
-    size_t count;
+    size_t   *offsets;
+    size_t   *lengths;
+    size_t    capacity;
+    size_t    count;
 };
 
 static const uint64_t STRING_HASH_UNUSED = 0xffffffffffffffffULL;
@@ -165,7 +170,7 @@ static inline bool string_intern_table_init(string_intern_table_t *table, size_t
         capacity = 8;
     }
 
-    table->hashes = (uint64_t *)malloc(sizeof(uint64_t) * capacity);
+    table->hashes  = (uint64_t *)malloc(sizeof(uint64_t) * capacity);
     table->offsets = (size_t *)malloc(sizeof(size_t) * capacity);
     table->lengths = (size_t *)malloc(sizeof(size_t) * capacity);
     if (!table->hashes || !table->offsets || !table->lengths)
@@ -173,17 +178,17 @@ static inline bool string_intern_table_init(string_intern_table_t *table, size_t
         free(table->hashes);
         free(table->offsets);
         free(table->lengths);
-        table->hashes = NULL;
-        table->offsets = NULL;
-        table->lengths = NULL;
+        table->hashes   = NULL;
+        table->offsets  = NULL;
+        table->lengths  = NULL;
         table->capacity = 0;
-        table->count = 0;
+        table->count    = 0;
         return false;
     }
 
     memset(table->hashes, 0xff, sizeof(uint64_t) * capacity);
     table->capacity = capacity;
-    table->count = 0;
+    table->count    = 0;
     return true;
 }
 
@@ -208,11 +213,11 @@ static inline void string_intern_table_release(string_intern_table_t *table)
     free(table->hashes);
     free(table->offsets);
     free(table->lengths);
-    table->hashes = NULL;
-    table->offsets = NULL;
-    table->lengths = NULL;
+    table->hashes   = NULL;
+    table->offsets  = NULL;
+    table->lengths  = NULL;
     table->capacity = 0;
-    table->count = 0;
+    table->count    = 0;
 }
 
 static inline const char *string_intern(string_intern_table_t *table, arena_t *arena, const char *str, size_t length)
@@ -227,8 +232,8 @@ static inline const char *string_intern(string_intern_table_t *table, arena_t *a
         return NULL;
     }
 
-    uint64_t hash = string_hash_bytes(str, length);
-    size_t index = hash % table->capacity;
+    uint64_t hash  = string_hash_bytes(str, length);
+    size_t   index = hash % table->capacity;
     while (table->hashes[index] != STRING_HASH_UNUSED)
     {
         if (table->hashes[index] == hash && table->lengths[index] == length)
@@ -250,7 +255,7 @@ static inline const char *string_intern(string_intern_table_t *table, arena_t *a
     memcpy(copy, str, length);
     copy[length] = '\0';
 
-    table->hashes[index] = hash;
+    table->hashes[index]  = hash;
     table->offsets[index] = (size_t)(copy - (char *)arena->buffer);
     table->lengths[index] = length;
     table->count++;
@@ -271,7 +276,7 @@ char *read_file_to_string_zero_terminated(arena_t *arena, char *file_path)
     char *result;
 
     FILE *file = NULL;
-    file = fopen(file_path, "rb");
+    file       = fopen(file_path, "rb");
     if (!file)
     {
         return NULL;
@@ -287,7 +292,7 @@ char *read_file_to_string_zero_terminated(arena_t *arena, char *file_path)
         fclose(file);
         return NULL;
     }
-    size_t read = fread(result, 1, length, file);
+    size_t read  = fread(result, 1, length, file);
     result[read] = '\0';
     fclose(file);
 
@@ -307,5 +312,96 @@ typedef struct complex32_t
     float32_t real;
     float32_t imaginary;
 } complex32_t;
+
+typedef struct rectangle_t
+{
+    float32_t x;
+    float32_t y;
+    float32_t width;
+    float32_t height;
+} rectangle_t;
+
+typedef struct vector2_t
+{
+    float32_t x;
+    float32_t y;
+} vector2_t;
+
+typedef struct buffer_uint8_t
+{
+    uint8_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_uint8_t;
+
+typedef struct buffer_uint16_t
+{
+    uint16_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_uint16_t;
+
+typedef struct buffer_uint32_t
+{
+    uint32_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_uint32_t;
+
+typedef struct buffer_uint64_t
+{
+    uint64_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_uint64_t;
+
+typedef struct buffer_int8_t
+{
+    int8_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_int8_t;
+
+typedef struct buffer_int16_t
+{
+    int16_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_int16_t;
+
+typedef struct buffer_int32_t
+{
+    int32_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_int32_t;
+
+typedef struct buffer_int64_t
+{
+    int64_t *data;
+    size_t   count;
+    size_t   capacity;
+} buffer_int64_t;
+
+typedef struct buffer_float32_t
+{
+    float32_t *data;
+    size_t     count;
+    size_t     capacity;
+} buffer_float32_t;
+
+typedef struct buffer_float64_t
+{
+    float64_t *data;
+    size_t     count;
+    size_t     capacity;
+} buffer_float64_t;
+
+typedef struct buffer_complex32_t
+{
+    complex32_t *data;
+    size_t       count;
+    size_t       capacity;
+} buffer_complex32_t;
 
 #endif // BASE_H

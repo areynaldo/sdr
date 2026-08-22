@@ -1,22 +1,19 @@
 #ifndef SDR_GUI_H
 #define SDR_GUI_H
 
-#include "core.h"
-#include "visualization.h"
-#include "spectrogram.h"
+#include "base.h"
 
-typedef struct gui_t
+typedef sdr_gui_internal_t;
+
+typedef struct sdr_gui_t
 {
-    plot_t iq_plot;
-    plot_t demod_plot;
-    plot_t audio_plot;
-    plot_t audio_spectrum_plot;
-    spectrogram_t audio_spectrogram;
-} gui_t;
+    sdr_gui_internal_t *internal;
+} sdr_gui_t;
 
-gui_t gui_make(void);
-void gui_destroy(gui_t *gui);
-void gui_render_plots(gui_t *gui, core_t *core);
-void gui_draw(gui_t *gui, core_t *core);
+void sdr_gui_init(sdr_gui_t *gui);
+void sdr_gui_deinit(sdr_gui_t *gui);
+
+void sdr_gui_start_frame(sdr_gui_t *gu);
+void sdr_gui_end_frame(sdr_gui_t *gui);
 
 #endif

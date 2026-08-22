@@ -1,0 +1,39 @@
+BasedOnStyle: Microsoft
+Language: Cpp
+IndentWidth: 4
+ColumnLimit: 120
+
+# --- long params / args: one per line when they wrap, block-indented ---
+AlignAfterOpenBracket: BlockIndent          # closing ) drops to its own line
+BinPackArguments: false                     # call args: all-or-nothing per line
+BinPackParameters: false                    # decl params: same rule
+AllowAllArgumentsOnNextLine: false
+AllowAllParametersOfDeclarationOnNextLine: false
+
+# --- your signature alignment, kept and extended ---
+AlignConsecutiveDeclarations:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: false
+    AlignFunctionDeclarations: false        # <-- stops aligning return types
+AlignConsecutiveAssignments:
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: false
+AlignConsecutiveMacros:                     # NEW: your #define blocks line up
+    Enabled: true
+    AcrossEmptyLines: false
+    AcrossComments: false
+AlignTrailingComments: true                 # // Bayern3 etc. line up
+
+# --- pointers & spacing to match what you already write ---
+PointerAlignment: Right                     # float32_t *buf
+SpaceBeforeParens: ControlStatements        # for (, if (  — not fn(
+IndentCaseLabels: false                     # case aligned with switch body
+
+# --- keep things un-collapsed, the way your code reads ---
+AllowShortFunctionsOnASingleLine: None
+AllowShortBlocksOnASingleLine: Never
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortCaseLabelsOnASingleLine: false
+KeepEmptyLinesAtTheStartOfBlocks: false
